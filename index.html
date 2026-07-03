@@ -136,11 +136,14 @@
 
   <div class="filters">
     <div class="seg" id="modeSeg">
+      <button data-mode="day">单日</button>
       <button data-mode="month" class="active">单月</button>
       <button data-mode="year">全年</button>
     </div>
     <select id="yearSel"></select>
     <select id="monthSel"></select>
+    <select id="daySel"></select>
+    <select id="storeSel"></select>
   </div>
 
   <div class="kpi-grid" id="kpiGrid"></div>
@@ -211,7 +214,7 @@
     {date:"2026-07-05", store:"TIKTOK", visitors:531,  pv:6928, orders:1,  gmv:522.07,   adSpend:0,      adRevenue:0,     newBuyers:0,  cancelled:0,  returns:0}
   ].map(function(r){ r.date = new Date(r.date + "T00:00:00"); return r; });
 
-  var state = { records: FALLBACK_RECORDS.slice(), live: false, mode: "month", year: null, month: null, storeColor: {} };
+  var state = { records: FALLBACK_RECORDS.slice(), live: false, mode: "month", year: null, month: null, day: null, store: "all", storeColor: {} };
 
   function num(v){
     var n = (typeof v === "number") ? v : parseFloat(v);
@@ -324,6 +327,17 @@
     ySel.value = state.year;
 
     refreshMonthOptions();
+    refreshStoreOptions();
+  }
+
+  function refreshStoreOptions(){
+    var names = Array.from(new Set(state.records.map(function(r){ return r.store; }))).sort();
+    var sSel = document.getElementById("storeSel");
+    var prevStore = state.store;
+    sSel.innerHTML = '<option value="all">🏬 全部店铺</option>' +
+      names.map(function(n){ return '<option value="'+escapeHtml(n)+'">'+escapeHtml(n)+'</option>'; }).join("");
+    state.store = (prevStore === "all" || names.indexOf(prevStore) >= 0) ? prevStore : "all";
+    sSel.value = state.store;
   }
 
   function refreshMonthOptions(){
@@ -336,20 +350,46 @@
     state.month = monthsInYear.indexOf(prevMonth) >= 0 ? prevMonth : monthsInYear[0];
     mSel.value = state.month;
     mSel.disabled = state.mode === "year";
+
+    refreshDayOptions();
+  }
+
+  function refreshDayOptions(){
+    var daysInMonth = Array.from(new Set(state.records.filter(function(r){
+      return r.date.getFullYear() === state.year && (r.date.getMonth()+1) === state.month;
+    }).map(function(r){ return r.date.getDate(); }))).sort(function(a,b){return b-a;});
+    if (!daysInMonth.length) daysInMonth = [new Date().getDate()];
+    var dSel = document.getElementById("daySel");
+    var prevDay = state.day;
+    dSel.innerHTML = daysInMonth.map(function(d){ return '<option value="'+d+'">'+d+' 日</option>'; }).join("");
+    state.day = daysInMonth.indexOf(prevDay) >= 0 ? prevDay : daysInMonth[0];
+    dSel.value = state.day;
+    dSel.disabled = state.mode !== "day";
+  }
+
+  function updateFilterEnablement(){
+    document.getElementById("monthSel").disabled = state.mode === "year";
+    document.getElementById("daySel").disabled = state.mode !== "day";
   }
 
   document.getElementById("modeSeg").addEventListener("click", function(e){
     var btn = e.target.closest("button"); if (!btn) return;
     state.mode = btn.dataset.mode;
     Array.from(this.children).forEach(function(b){ b.classList.toggle("active", b === btn); });
-    document.getElementById("monthSel").disabled = state.mode === "year";
+    updateFilterEnablement();
     render();
   });
   document.getElementById("yearSel").addEventListener("change", function(){
     state.year = +this.value; refreshMonthOptions(); render();
   });
   document.getElementById("monthSel").addEventListener("change", function(){
-    state.month = +this.value; render();
+    state.month = +this.value; refreshDayOptions(); render();
+  });
+  document.getElementById("daySel").addEventListener("change", function(){
+    state.day = +this.value; render();
+  });
+  document.getElementById("storeSel").addEventListener("change", function(){
+    state.store = this.value; render();
   });
   document.getElementById("refreshBtn").addEventListener("click", function(){ load(true); });
 
@@ -364,7 +404,9 @@
   function filteredRecords(){
     return state.records.filter(function(r){
       if (r.date.getFullYear() !== state.year) return false;
-      if (state.mode === "month" && (r.date.getMonth()+1) !== state.month) return false;
+      if ((state.mode === "month" || state.mode === "day") && (r.date.getMonth()+1) !== state.month) return false;
+      if (state.mode === "day" && r.date.getDate() !== state.day) return false;
+      if (state.store !== "all" && r.store !== state.store) return false;
       return true;
     });
   }
@@ -501,7 +543,13 @@
   function renderTrend(records){
     var titleEl = document.getElementById("trendTitle");
     var buckets, labelFn;
-    if (state.mode === "month"){
+    if (state.mode === "day"){
+      titleEl.innerHTML = "当日各店铺 GMV <span class='hint'>" + state.year + "-" + String(state.month).padStart(2,"0") + "-" + String(state.day).padStart(2,"0") + "</span>";
+      var byStore = {};
+      records.forEach(function(r){ byStore[r.store] = (byStore[r.store]||0) + r.gmv; });
+      buckets = Object.keys(byStore).sort(function(a,b){ return byStore[b]-byStore[a]; })
+        .map(function(k){ return {label:k, full:k, value:byStore[k]}; });
+    } else if (state.mode === "month"){
       titleEl.innerHTML = "每日 GMV 趋势 <span class='hint'>" + state.year + " 年 " + state.month + " 月</span>";
       var byDay = {};
       records.forEach(function(r){ var k = fmtDate(r.date); byDay[k] = (byDay[k]||0) + r.gmv; });
