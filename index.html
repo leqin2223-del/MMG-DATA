@@ -198,6 +198,7 @@
 
   var SHEET_ID = "1KMAmTPMLeJAJBpk0Dbez6Lt-6I1CWntf";
   var SHEET_NAME = "📝 每日数据填写";
+  var SHEET_GID = "683765163"; // "每日数据填写" tab's gid — more reliable than matching by name
   var REFRESH_MS = 5 * 60 * 1000;
 
   // Fixed categorical color order (assigned once, stable across filters)
@@ -277,7 +278,7 @@
   }
 
   // ---- JSONP fetch from Google Sheets (public / "anyone with link" sheet) ----
-  function fetchSheet(sheetName){
+  function fetchSheet(gid){
     return new Promise(function(resolve, reject){
       var cbName = "__gvizCb_" + Math.random().toString(36).slice(2);
       var timer = setTimeout(function(){ cleanup(); reject(new Error("请求超时")); }, 12000);
@@ -287,9 +288,12 @@
         if (script.parentNode) script.parentNode.removeChild(script);
       }
       window[cbName] = function(resp){ cleanup(); resolve(resp); };
+      // gid uniquely identifies the tab and survives renaming/reordering; more
+      // reliable than matching by sheet name (which can silently fall back to
+      // the first tab if the emoji/name doesn't match exactly).
       var url = "https://docs.google.com/spreadsheets/d/" + SHEET_ID +
                  "/gviz/tq?tqx=out:json;responseHandler:" + cbName +
-                 "&sheet=" + encodeURIComponent(sheetName) + "&_=" + Date.now();
+                 "&gid=" + encodeURIComponent(gid) + "&_=" + Date.now();
       var script = document.createElement("script");
       script.src = url;
       script.onerror = function(){ cleanup(); reject(new Error("网络请求失败")); };
@@ -385,7 +389,7 @@
   // ---- Data loading ----
   function load(isManual){
     setStatus("loading");
-    fetchSheet(SHEET_NAME).then(function(resp){
+    fetchSheet(SHEET_GID).then(function(resp){
       var records = parseRecords(resp);
       if (!records.length) throw new Error("未解析到任何数据行");
       state.records = records;
