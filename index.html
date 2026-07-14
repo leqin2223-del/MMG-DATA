@@ -432,7 +432,12 @@
     if (kind === "loading"){
       dot.className = "dot stale"; text.innerHTML = '<span class="dot stale" id="statusDot"></span>正在加载最新数据…';
     } else if (kind === "live"){
-      text.innerHTML = '<span class="dot live" id="statusDot"></span>实时数据 · 更新于 ' + timeStr;
+      var diag = "";
+      if (state.records.length){
+        var dates = state.records.map(function(r){ return r.date; }).sort(function(a,b){ return a-b; });
+        diag = "（共 " + state.records.length + " 条记录，" + fmtDate(dates[0]) + " 至 " + fmtDate(dates[dates.length-1]) + "）";
+      }
+      text.innerHTML = '<span class="dot live" id="statusDot"></span>实时数据 · 更新于 ' + timeStr + '<br><span style="font-size:10.5px;">' + diag + '</span>';
     } else {
       text.innerHTML = '<span class="dot err" id="statusDot"></span>离线快照 · 上次尝试 ' + timeStr;
     }
