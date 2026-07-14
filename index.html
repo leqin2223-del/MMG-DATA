@@ -293,7 +293,13 @@
       // the first tab if the emoji/name doesn't match exactly).
       var url = "https://docs.google.com/spreadsheets/d/" + SHEET_ID +
                  "/gviz/tq?tqx=out:json;responseHandler:" + cbName +
-                 "&gid=" + encodeURIComponent(gid) + "&_=" + Date.now();
+                 "&gid=" + encodeURIComponent(gid) +
+                 "&headers=0" + // disable gviz's automatic header-row detection: without this,
+                                 // Google may silently strip 1-2 rows out of table.rows into
+                                 // table.cols[].label instead, which is what was actually causing
+                                 // "未解析到任何数据行" — our parser expects every row (including
+                                 // the title/header rows) to be present in table.rows.
+                 "&_=" + Date.now();
       var script = document.createElement("script");
       script.src = url;
       script.onerror = function(){ cleanup(); reject(new Error("网络请求失败")); };
@@ -351,12 +357,24 @@
   function parseRecords(resp){
     var rows = (resp && resp.table && resp.table.rows) || [];
     var headerRowIdx = findHeaderRow(rows);
-    if (headerRowIdx < 0) return [];
-    var colMap = buildColumnMap(rows[headerRowIdx].c || []);
+    var colMap, dataStartIdx;
+    if (headerRowIdx >= 0){
+      colMap = buildColumnMap(rows[headerRowIdx].c || []);
+      dataStartIdx = headerRowIdx + 1;
+    } else {
+      // Fallback: if Google's gviz still stripped the header row(s) out into
+      // table.cols despite &headers=0, build the column map from there and
+      // treat every row in table.rows as a potential data row.
+      var cols = (resp && resp.table && resp.table.cols) || [];
+      var syntheticHeader = cols.map(function(col){ return { v: col.label || "" }; });
+      colMap = buildColumnMap(syntheticHeader);
+      dataStartIdx = 0;
+    }
+    if (colMap.store < 0) return []; // couldn't locate columns at all — bail cleanly
 
     var out = [];
     var started = false;
-    for (var i = headerRowIdx + 1; i < rows.length; i++){
+    for (var i = dataStartIdx; i < rows.length; i++){
       var c = rows[i].c || [];
       var d = null;
       for (var j = 0; j < c.length; j++){
