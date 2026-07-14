@@ -291,14 +291,17 @@
       // gid uniquely identifies the tab and survives renaming/reordering; more
       // reliable than matching by sheet name (which can silently fall back to
       // the first tab if the emoji/name doesn't match exactly).
+      // Deliberately NOT passing &headers=0 here: letting gviz auto-detect and
+      // strip the header row into table.cols[].label is actually more
+      // reliable than forcing it into table.rows. When a header row is kept
+      // inside table.rows, gviz still coerces each cell to match its
+      // column's inferred type — a text header sitting above a numeric
+      // column can come back with both v AND f empty (the label is lost
+      // entirely, not just moved), which silently zeroed out every numeric
+      // field. table.cols[].label is unaffected by that coercion.
       var url = "https://docs.google.com/spreadsheets/d/" + SHEET_ID +
                  "/gviz/tq?tqx=out:json;responseHandler:" + cbName +
                  "&gid=" + encodeURIComponent(gid) +
-                 "&headers=0" + // disable gviz's automatic header-row detection: without this,
-                                 // Google may silently strip 1-2 rows out of table.rows into
-                                 // table.cols[].label instead, which is what was actually causing
-                                 // "未解析到任何数据行" — our parser expects every row (including
-                                 // the title/header rows) to be present in table.rows.
                  "&_=" + Date.now();
       var script = document.createElement("script");
       script.src = url;
@@ -368,19 +371,27 @@
 
   function parseRecords(resp){
     var rows = (resp && resp.table && resp.table.rows) || [];
-    var headerRowIdx = findHeaderRow(rows);
     var colMap, dataStartIdx;
-    if (headerRowIdx >= 0){
+
+    // Prefer table.cols[].label: when gviz auto-detects a header row it moves
+    // it out of table.rows and into table.cols[].label, which keeps the
+    // original text untouched. Every row that's left in table.rows is then a
+    // data row (dataStartIdx = 0). This is more reliable than reading header
+    // text back out of table.rows (see fetchSheet's comment for why).
+    var cols = (resp && resp.table && resp.table.cols) || [];
+    var colsHeader = cols.map(function(col){ return { v: col.label || "" }; });
+    var colsMap = buildColumnMap(colsHeader);
+
+    if (colsMap.store >= 0){
+      colMap = colsMap;
+      dataStartIdx = 0;
+    } else {
+      // Fallback: header row wasn't split out into cols (e.g. gviz decided
+      // there were 0 header rows) — find it inside table.rows instead.
+      var headerRowIdx = findHeaderRow(rows);
+      if (headerRowIdx < 0) return [];
       colMap = buildColumnMap(rows[headerRowIdx].c || []);
       dataStartIdx = headerRowIdx + 1;
-    } else {
-      // Fallback: if Google's gviz still stripped the header row(s) out into
-      // table.cols despite &headers=0, build the column map from there and
-      // treat every row in table.rows as a potential data row.
-      var cols = (resp && resp.table && resp.table.cols) || [];
-      var syntheticHeader = cols.map(function(col){ return { v: col.label || "" }; });
-      colMap = buildColumnMap(syntheticHeader);
-      dataStartIdx = 0;
     }
     if (colMap.store < 0) return []; // couldn't locate columns at all — bail cleanly
 
