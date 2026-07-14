@@ -321,12 +321,24 @@
   // column itself is located per-row by scanning for a cell whose value is a
   // gviz Date(...) literal, since header text for the date column has been
   // seen duplicated/ambiguous in practice.
+  // For a column gviz infers as numeric, a text header cell sitting in that
+  // column often comes back with v:null and the literal text only in f (the
+  // formatted-value field) — v and the column's inferred type must agree, so
+  // a string can't live in .v there. Always prefer a string .v, else fall
+  // back to .f, so header lookups work for numeric-typed columns too.
+  function cellText(cell){
+    if (!cell) return null;
+    if (typeof cell.v === "string") return cell.v;
+    if (typeof cell.f === "string") return cell.f;
+    return null;
+  }
+
   function findHeaderRow(rows){
     for (var i = 0; i < rows.length; i++){
       var c = rows[i].c || [];
       for (var j = 0; j < c.length; j++){
-        var v = c[j] && c[j].v;
-        if (typeof v === "string" && v.indexOf("店铺") >= 0) return i;
+        var v = cellText(c[j]);
+        if (v && v.indexOf("店铺") >= 0) return i;
       }
     }
     return -1;
@@ -335,8 +347,8 @@
   function buildColumnMap(headerCells){
     function findCol(rule){
       for (var j = 0; j < headerCells.length; j++){
-        var v = headerCells[j] && headerCells[j].v;
-        if (typeof v === "string" && rule(v)) return j;
+        var v = cellText(headerCells[j]);
+        if (v && rule(v)) return j;
       }
       return -1;
     }
