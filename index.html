@@ -155,6 +155,15 @@
   #pProductTable th:nth-child(2), #pProductTable td:nth-child(2){text-align:left; position:sticky; left:0; background:var(--surface-1);}
   section h2 .closeBtn{float:right;}
   .sectionsub{font-size:13px; font-weight:700; margin:16px 0 8px;}
+
+  #pProductTable th.sortable{cursor:pointer; user-select:none; white-space:nowrap;}
+  #pProductTable th.sortable:hover{color:var(--text-primary);}
+  #pProductTable th .sortArrow{display:inline-block; width:10px; font-size:10px; color:var(--s1);}
+  .pagebar{
+    display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;
+    margin-top:12px; font-size:12px; color:var(--muted);
+  }
+  .pagebar .btns{display:flex; gap:8px;}
 </style>
 </head>
 <body>
@@ -266,15 +275,26 @@
     </section>
 
     <section>
-      <h2>按产品名称汇总 <span class="hint" id="pProductHint">按销售额排序 · 前 20 名 · 点击产品名查看详情，勾选可对比</span></h2>
+      <h2>按产品名称汇总 <span class="hint" id="pProductHint">点击产品名查看详情，勾选可对比</span></h2>
       <input type="text" id="pSearchInput" placeholder="🔍 搜索产品名称 / 品牌 / 销售员…" style="width:100%;box-sizing:border-box;padding:9px 12px;margin-bottom:12px;border:1px solid var(--border);border-radius:10px;background:var(--page);color:var(--text-primary);font-size:13px;">
       <div class="tblscroll">
         <table id="pProductTable">
           <thead><tr>
-            <th></th><th style="text-align:left;">产品名称</th><th>品牌</th><th>数量</th><th>金额 (RM)</th>
+            <th></th>
+            <th class="sortable" data-sort="product" style="text-align:left;">产品名称<span class="sortArrow"></span></th>
+            <th>品牌</th>
+            <th class="sortable" data-sort="qty">数量<span class="sortArrow"></span></th>
+            <th class="sortable" data-sort="amount">金额 (RM)<span class="sortArrow"></span></th>
           </tr></thead>
           <tbody></tbody>
         </table>
+      </div>
+      <div class="pagebar" id="pProductPageBar">
+        <span id="pProductPageInfo"></span>
+        <div class="btns">
+          <button class="miniBtn ghost" id="pProductPrevBtn">‹ 上一页</button>
+          <button class="miniBtn ghost" id="pProductNextBtn">下一页 ›</button>
+        </div>
       </div>
     </section>
 
@@ -656,10 +676,11 @@
     return out;
   }
 
-  var pState = { records: [], live: false, mode: "month", year: null, month: null, day: null, store: "all", compareSet: new Set(), detailProduct: null, compareColor: {}, searchQuery: "" };
+  var pState = { records: [], live: false, mode: "month", year: null, month: null, day: null, store: "all", compareSet: new Set(), detailProduct: null, compareColor: {}, searchQuery: "", sortField: "amount", sortDir: "desc", page: 1 };
 
   document.getElementById("pSearchInput").addEventListener("input", function(){
     pState.searchQuery = this.value;
+    pState.page = 1;
     renderProduct();
   });
 
@@ -737,19 +758,20 @@
     Array.from(this.children).forEach(function(b){ b.classList.toggle("active", b === btn); });
     document.getElementById("pMonthSel").disabled = pState.mode === "year";
     document.getElementById("pDaySel").disabled = pState.mode !== "day";
+    pState.page = 1;
     renderProduct();
   });
   document.getElementById("pYearSel").addEventListener("change", function(){
-    pState.year = +this.value; refreshProductMonthOptions(); renderProduct();
+    pState.year = +this.value; pState.page = 1; refreshProductMonthOptions(); renderProduct();
   });
   document.getElementById("pMonthSel").addEventListener("change", function(){
-    pState.month = +this.value; refreshProductDayOptions(); renderProduct();
+    pState.month = +this.value; pState.page = 1; refreshProductDayOptions(); renderProduct();
   });
   document.getElementById("pDaySel").addEventListener("change", function(){
-    pState.day = +this.value; renderProduct();
+    pState.day = +this.value; pState.page = 1; renderProduct();
   });
   document.getElementById("pStoreSel").addEventListener("change", function(){
-    pState.store = this.value; renderProduct();
+    pState.store = this.value; pState.page = 1; renderProduct();
   });
 
   function filteredProductRecords(){
@@ -837,15 +859,32 @@
     return map;
   }
 
+  var PRODUCT_PAGE_SIZE = 20;
+
+  function sortProductItems(items){
+    var field = pState.sortField, dir = pState.sortDir;
+    var sorted = items.slice();
+    sorted.sort(function(a, b){
+      var cmp;
+      if (field === "product"){
+        cmp = a.product.localeCompare(b.product, "zh-Hans-CN");
+      } else {
+        cmp = a[field] - b[field];
+      }
+      return dir === "asc" ? cmp : -cmp;
+    });
+    return sorted;
+  }
+
   // Search matches product name, brand, or any agent who sold that product — against
   // the FULL aggregated totals (not just the matching agent's slice), so a search by
   // agent name still shows each matched product's true overall numbers, consistent
-  // with the rest of this tab's figures. When there's no query, fall back to the
-  // normal "top 20 by revenue" view.
+  // with the rest of this tab's figures. The full (search-filtered) list is then
+  // sorted by whichever column the user picked, and paginated 20 rows at a time —
+  // no more silently hiding everything past a "top 20" cutoff.
   function renderProductTableWithSearch(records){
     var fullAgg = aggregateByProduct(records);
     var q = (pState.searchQuery || "").trim().toLowerCase();
-    var hintEl = document.getElementById("pProductHint");
     var items;
     if (q){
       var agentsMap = buildProductAgentsMap(records);
@@ -860,13 +899,69 @@
         }
         return false;
       });
-      hintEl.textContent = "共找到 " + items.length + " 项匹配 · 点击产品名查看详情，勾选可对比";
     } else {
-      items = fullAgg.slice(0, 20);
-      hintEl.textContent = "按销售额排序 · 前 20 名 · 点击产品名查看详情，勾选可对比";
+      items = fullAgg;
     }
-    renderProductTable(items);
+
+    items = sortProductItems(items);
+
+    var total = items.length;
+    var totalPages = Math.max(1, Math.ceil(total / PRODUCT_PAGE_SIZE));
+    if (pState.page > totalPages) pState.page = totalPages;
+    if (pState.page < 1) pState.page = 1;
+    var startIdx = (pState.page - 1) * PRODUCT_PAGE_SIZE;
+    var pageItems = items.slice(startIdx, startIdx + PRODUCT_PAGE_SIZE);
+
+    var hintEl = document.getElementById("pProductHint");
+    hintEl.textContent = (q ? ("共找到 " + total + " 项匹配") : ("共 " + total + " 个产品")) + " · 点击产品名查看详情，勾选可对比";
+
+    updateSortArrows();
+    renderProductTable(pageItems);
+    renderProductPageBar(total, totalPages);
   }
+
+  function updateSortArrows(){
+    var ths = document.querySelectorAll("#pProductTable th.sortable");
+    ths.forEach(function(th){
+      var arrow = th.querySelector(".sortArrow");
+      if (th.dataset.sort === pState.sortField){
+        arrow.textContent = pState.sortDir === "asc" ? "▲" : "▼";
+      } else {
+        arrow.textContent = "";
+      }
+    });
+  }
+
+  function renderProductPageBar(total, totalPages){
+    document.getElementById("pProductPageInfo").textContent =
+      total === 0 ? "" : ("第 " + pState.page + " / " + totalPages + " 页 · 共 " + total + " 条");
+    document.getElementById("pProductPrevBtn").disabled = pState.page <= 1;
+    document.getElementById("pProductNextBtn").disabled = pState.page >= totalPages;
+    document.getElementById("pProductPageBar").style.display = total === 0 ? "none" : "flex";
+  }
+
+  document.querySelectorAll("#pProductTable th.sortable").forEach(function(th){
+    th.addEventListener("click", function(){
+      var field = th.dataset.sort;
+      if (pState.sortField === field){
+        pState.sortDir = pState.sortDir === "asc" ? "desc" : "asc";
+      } else {
+        pState.sortField = field;
+        pState.sortDir = field === "product" ? "asc" : "desc";
+      }
+      pState.page = 1;
+      renderProductTableWithSearch(filteredProductRecords());
+    });
+  });
+
+  document.getElementById("pProductPrevBtn").addEventListener("click", function(){
+    pState.page = Math.max(1, pState.page - 1);
+    renderProductTableWithSearch(filteredProductRecords());
+  });
+  document.getElementById("pProductNextBtn").addEventListener("click", function(){
+    pState.page = pState.page + 1;
+    renderProductTableWithSearch(filteredProductRecords());
+  });
 
   function renderProductTable(items){
     var tbody = document.querySelector("#pProductTable tbody");
