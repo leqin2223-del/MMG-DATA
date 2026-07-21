@@ -119,6 +119,42 @@
     border-radius:10px; padding:10px 12px; font-size:12.5px; margin-bottom:16px; display:none;
   }
   .empty{color:var(--muted); font-size:12.5px; text-align:center; padding:20px 0;}
+
+  .toptabs{display:flex; gap:6px; margin:14px 0 4px; border-bottom:1px solid var(--border);}
+  .toptabs button{
+    border:none; background:transparent; color:var(--text-secondary); padding:9px 4px; margin-right:14px;
+    font-size:14.5px; font-weight:600; cursor:pointer; border-bottom:2.5px solid transparent; position:relative; top:1px;
+  }
+  .toptabs button.active{color:var(--s1); border-bottom-color:var(--s1);}
+  .tabpage{display:none;}
+  .tabpage.active{display:block;}
+
+  .rank{display:flex; flex-direction:column; gap:10px;}
+  .rankrow{display:flex; align-items:center; gap:10px; font-size:12.5px;}
+  .rankrow .rnum{width:18px; flex-shrink:0; color:var(--muted); font-weight:700; font-size:11.5px;}
+  .rankrow .name{width:96px; flex-shrink:0; color:var(--text-secondary); font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .rankrow .track{flex:1; background:var(--grid); border-radius:5px; height:20px; position:relative; overflow:hidden;}
+  .rankrow .fill{height:100%; border-radius:5px; min-width:3px;}
+  .rankrow .val{width:110px; text-align:right; flex-shrink:0; font-variant-numeric:tabular-nums; color:var(--text-primary);}
+
+  .miniBtn{
+    border:1px solid var(--border); background:var(--s1); color:#fff; font-weight:600;
+    border-radius:8px; padding:6px 12px; font-size:12px; cursor:pointer;
+  }
+  .miniBtn.ghost{background:var(--surface-1); color:var(--text-secondary);}
+  .miniBtn:disabled{opacity:0.4; cursor:not-allowed;}
+  .comparebar{
+    display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;
+    background:var(--surface-1); border:1px solid var(--border); border-radius:var(--card-radius);
+    padding:10px 14px; margin:-4px 0 16px; font-size:12.5px; color:var(--text-secondary);
+  }
+  .comparebar .btns{display:flex; gap:8px;}
+  #pProductTable tr[data-product]{cursor:pointer;}
+  #pProductTable tr[data-product]:hover td{background:rgba(42,120,214,0.06);}
+  #pProductTable th:first-child, #pProductTable td:first-child{position:static; text-align:center; width:34px;}
+  #pProductTable th:nth-child(2), #pProductTable td:nth-child(2){text-align:left; position:sticky; left:0; background:var(--surface-1);}
+  section h2 .closeBtn{float:right;}
+  .sectionsub{font-size:13px; font-weight:700; margin:16px 0 8px;}
 </style>
 </head>
 <body>
@@ -133,6 +169,13 @@
   </header>
 
   <div class="errbox" id="errBox"></div>
+
+  <div class="toptabs" id="topTabs">
+    <button data-tab="overview" class="active">📊 总览</button>
+    <button data-tab="product">🛍️ 产品销售</button>
+  </div>
+
+  <div class="tabpage active" id="tab-overview">
 
   <div class="filters">
     <div class="seg" id="modeSeg">
@@ -186,6 +229,101 @@
     </div>
   </section>
 
+  </div><!-- /tab-overview -->
+
+  <div class="tabpage" id="tab-product">
+
+    <div class="filters">
+      <div class="seg" id="pModeSeg">
+        <button data-mode="day">单日</button>
+        <button data-mode="month" class="active">单月</button>
+        <button data-mode="year">全年</button>
+      </div>
+      <select id="pYearSel"></select>
+      <select id="pMonthSel"></select>
+      <select id="pDaySel"></select>
+      <select id="pStoreSel"></select>
+    </div>
+
+    <div class="kpi-grid" id="pKpiGrid"></div>
+
+    <section>
+      <h2 id="pTrendTitle">销售趋势</h2>
+      <div class="chartwrap">
+        <svg class="trend" id="pTrendSvg"></svg>
+        <div class="tooltip" id="pTrendTooltip"></div>
+      </div>
+    </section>
+
+    <section>
+      <h2>销售 Agent 排行榜 <span class="hint">按销售额排序 · 前 15 名</span></h2>
+      <div class="rank" id="pAgentRank"></div>
+    </section>
+
+    <section>
+      <h2>按品牌汇总 <span class="hint">按销售额排序 · 前 12 名</span></h2>
+      <div class="rank" id="pBrandRank"></div>
+    </section>
+
+    <section>
+      <h2>按产品名称汇总 <span class="hint">按销售额排序 · 前 20 名 · 点击产品名查看详情，勾选可对比</span></h2>
+      <div class="tblscroll">
+        <table id="pProductTable">
+          <thead><tr>
+            <th></th><th style="text-align:left;">产品名称</th><th>品牌</th><th>数量</th><th>金额 (RM)</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <div class="comparebar" id="pCompareBar" style="display:none;">
+      <span>已选择 <strong id="pCompareCount">0</strong> 个产品用于对比（最多 8 个）</span>
+      <div class="btns">
+        <button class="miniBtn" id="pCompareBtn" disabled>📊 查看对比</button>
+        <button class="miniBtn ghost" id="pCompareClearBtn">清除选择</button>
+      </div>
+    </div>
+
+    <section id="pDetailSection" style="display:none;">
+      <h2><span id="pDetailTitle"></span><button class="miniBtn ghost closeBtn" id="pDetailCloseBtn">✕ 关闭</button></h2>
+      <div class="kpi-grid" id="pDetailKpi"></div>
+      <div class="chartwrap">
+        <svg class="trend" id="pDetailTrendSvg"></svg>
+        <div class="tooltip" id="pDetailTrendTooltip"></div>
+      </div>
+      <div style="display:flex; gap:20px; flex-wrap:wrap; margin-top:14px;">
+        <div style="flex:1; min-width:220px;">
+          <div class="sectionsub">按店铺分布</div>
+          <div class="rank" id="pDetailStoreRank"></div>
+        </div>
+        <div style="flex:1; min-width:220px;">
+          <div class="sectionsub">按 Agent 分布</div>
+          <div class="rank" id="pDetailAgentRank"></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="pCompareSection" style="display:none;">
+      <h2>产品对比<button class="miniBtn ghost closeBtn" id="pCompareCloseBtn">✕ 关闭</button></h2>
+      <div class="tblscroll">
+        <table id="pCompareTable">
+          <thead><tr>
+            <th style="text-align:left;">产品名称</th><th>数量</th><th>金额 (RM)</th><th>平均单价</th><th>订单笔数</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="sectionsub" id="pCompareTrendTitle">销售额趋势对比</div>
+      <div class="chartwrap">
+        <svg class="trend" id="pCompareTrendSvg" style="height:200px;"></svg>
+        <div class="tooltip" id="pCompareTrendTooltip"></div>
+      </div>
+      <div class="legend" id="pCompareLegend"></div>
+    </section>
+
+  </div><!-- /tab-product -->
+
   <footer>
     本页面直接读取 Google Sheets 实时数据，每 5 分钟自动刷新一次，也可随时点击「刷新数据」查看最新情况。<br>
     若网络不可用，将显示最近一次加载成功的数据快照。
@@ -199,6 +337,7 @@
   var SHEET_ID = "1KMAmTPMLeJAJBpk0Dbez6Lt-6I1CWntf";
   var SHEET_NAME = "📝 每日数据填写";
   var SHEET_GID = "442223043"; // "每日数据填写" tab's gid — more reliable than matching by name
+  var PRODUCT_SHEET_GID = "274328886"; // "产品销售明细" tab's gid
   var REFRESH_MS = 5 * 60 * 1000;
 
   // Fixed categorical color order (assigned once, stable across filters)
@@ -426,6 +565,537 @@
     }
     return out;
   }
+
+  // ==== 产品销售 (product sales) data: same gviz JSONP mechanism, own column map ====
+  function findProductHeaderRow(rows){
+    for (var i = 0; i < rows.length; i++){
+      var c = rows[i].c || [];
+      for (var j = 0; j < c.length; j++){
+        var v = cellText(c[j]);
+        if (v && (v.indexOf("产品名称") >= 0 || v.indexOf("销售员") >= 0)) return i;
+      }
+    }
+    return -1;
+  }
+
+  function buildProductColumnMap(headerCells){
+    function findCol(rule){
+      for (var j = 0; j < headerCells.length; j++){
+        var v = cellText(headerCells[j]);
+        if (v && rule(v)) return j;
+      }
+      return -1;
+    }
+    return {
+      store:   findCol(function(s){ return s.indexOf("店铺") >= 0; }),
+      brand:   findCol(function(s){ return s.indexOf("品牌") >= 0; }),
+      category:findCol(function(s){ return s.indexOf("分类") >= 0; }),
+      product: findCol(function(s){ return s.indexOf("产品名称") >= 0; }),
+      agent:   findCol(function(s){ return s.indexOf("销售员") >= 0 || s.indexOf("agent") >= 0 || s.indexOf("Agent") >= 0; }),
+      qty:     findCol(function(s){ return s.indexOf("数量") >= 0; }),
+      price:   findCol(function(s){ return s.indexOf("单价") >= 0; }),
+      amount:  findCol(function(s){ return s.indexOf("金额") >= 0; })
+    };
+  }
+
+  function parseProductRecords(resp){
+    var rows = (resp && resp.table && resp.table.rows) || [];
+    var colMap, dataStartIdx;
+
+    var cols = (resp && resp.table && resp.table.cols) || [];
+    var colsHeader = cols.map(function(col){ return { v: col.label || "" }; });
+    var colsMap = buildProductColumnMap(colsHeader);
+
+    if (colsMap.product >= 0 || colsMap.agent >= 0){
+      colMap = colsMap;
+      dataStartIdx = 0;
+    } else {
+      var headerRowIdx = findProductHeaderRow(rows);
+      if (headerRowIdx < 0) return [];
+      colMap = buildProductColumnMap(rows[headerRowIdx].c || []);
+      dataStartIdx = headerRowIdx + 1;
+    }
+    if (colMap.product < 0 && colMap.agent < 0) return [];
+
+    var out = [];
+    var started = false;
+    for (var i = dataStartIdx; i < rows.length; i++){
+      var c = rows[i].c || [];
+      var d = null;
+      for (var j = 0; j < c.length; j++){
+        var candidate = c[j] ? parseGvizDate(c[j].v) : null;
+        if (candidate){ d = candidate; break; }
+      }
+      // 日期列也可能是纯文本 "yyyy-mm-dd"（模板公式产出），date-scan 找不到时兜底扫描文本日期
+      if (!d){
+        for (var k = 0; k < c.length; k++){
+          var tv = c[k] ? cellText(c[k]) : null;
+          if (tv && /^\d{4}-\d{2}-\d{2}$/.test(tv)){ var dm = tv.split("-"); d = new Date(+dm[0], +dm[1]-1, +dm[2]); break; }
+        }
+      }
+      if (!d){
+        if (started) break;
+        continue;
+      }
+      started = true;
+      var get = function(idx){ return (idx >= 0 && c[idx]) ? c[idx].v : null; };
+      var getText = function(idx){ return (idx >= 0 && c[idx]) ? (cellText(c[idx]) || (c[idx].v != null ? String(c[idx].v) : "")) : ""; };
+      out.push({
+        date: d,
+        store: (getText(colMap.store) || "").toString().trim() || "未命名店铺",
+        brand: (getText(colMap.brand) || "").toString().trim() || "未分类",
+        category: (getText(colMap.category) || "").toString().trim(),
+        product: (getText(colMap.product) || "").toString().trim() || "未命名产品",
+        agent: (getText(colMap.agent) || "").toString().trim() || "未指定",
+        qty: num(get(colMap.qty)),
+        price: num(get(colMap.price)),
+        amount: num(get(colMap.amount))
+      });
+    }
+    return out;
+  }
+
+  var pState = { records: [], live: false, mode: "month", year: null, month: null, day: null, store: "all", compareSet: new Set(), detailProduct: null, compareColor: {} };
+
+  function loadProduct(){
+    fetchSheet(PRODUCT_SHEET_GID).then(function(resp){
+      var records = parseProductRecords(resp);
+      if (!records.length) throw new Error("未解析到任何产品销售数据");
+      pState.records = records;
+      pState.live = true;
+      populateProductFilters();
+      renderProduct();
+    }).catch(function(err){
+      pState.live = false;
+      if (!pState.year && pState.records.length === 0){
+        // no data at all yet — leave sections showing "暂无数据" until a successful load
+        populateProductFilters();
+        renderProduct();
+      }
+    });
+  }
+
+  function populateProductFilters(){
+    var years = Array.from(new Set(pState.records.map(function(r){ return r.date.getFullYear(); }))).sort(function(a,b){return b-a;});
+    if (!years.length) years = [new Date().getFullYear()];
+    var ySel = document.getElementById("pYearSel");
+    var prevYear = pState.year;
+    ySel.innerHTML = years.map(function(y){ return '<option value="'+y+'">'+y+' 年</option>'; }).join("");
+    pState.year = years.indexOf(prevYear) >= 0 ? prevYear : years[0];
+    ySel.value = pState.year;
+
+    refreshProductMonthOptions();
+    refreshProductStoreOptions();
+  }
+
+  function refreshProductStoreOptions(){
+    var names = Array.from(new Set(pState.records.map(function(r){ return r.store; }))).sort();
+    var sSel = document.getElementById("pStoreSel");
+    var prevStore = pState.store;
+    sSel.innerHTML = '<option value="all">🏬 全部店铺</option>' +
+      names.map(function(n){ return '<option value="'+escapeHtml(n)+'">'+escapeHtml(n)+'</option>'; }).join("");
+    pState.store = (prevStore === "all" || names.indexOf(prevStore) >= 0) ? prevStore : "all";
+    sSel.value = pState.store;
+  }
+
+  function refreshProductMonthOptions(){
+    var monthsInYear = Array.from(new Set(pState.records.filter(function(r){ return r.date.getFullYear() === pState.year; })
+      .map(function(r){ return r.date.getMonth()+1; }))).sort(function(a,b){return b-a;});
+    if (!monthsInYear.length) monthsInYear = [new Date().getMonth()+1];
+    var mSel = document.getElementById("pMonthSel");
+    var prevMonth = pState.month;
+    mSel.innerHTML = monthsInYear.map(function(m){ return '<option value="'+m+'">'+m+' 月</option>'; }).join("");
+    pState.month = monthsInYear.indexOf(prevMonth) >= 0 ? prevMonth : monthsInYear[0];
+    mSel.value = pState.month;
+    mSel.disabled = pState.mode === "year";
+
+    refreshProductDayOptions();
+  }
+
+  function refreshProductDayOptions(){
+    var daysInMonth = Array.from(new Set(pState.records.filter(function(r){
+      return r.date.getFullYear() === pState.year && (r.date.getMonth()+1) === pState.month;
+    }).map(function(r){ return r.date.getDate(); }))).sort(function(a,b){return b-a;});
+    if (!daysInMonth.length) daysInMonth = [new Date().getDate()];
+    var dSel = document.getElementById("pDaySel");
+    var prevDay = pState.day;
+    dSel.innerHTML = daysInMonth.map(function(d){ return '<option value="'+d+'">'+d+' 日</option>'; }).join("");
+    pState.day = daysInMonth.indexOf(prevDay) >= 0 ? prevDay : daysInMonth[0];
+    dSel.value = pState.day;
+    dSel.disabled = pState.mode !== "day";
+  }
+
+  document.getElementById("pModeSeg").addEventListener("click", function(e){
+    var btn = e.target.closest("button"); if (!btn) return;
+    pState.mode = btn.dataset.mode;
+    Array.from(this.children).forEach(function(b){ b.classList.toggle("active", b === btn); });
+    document.getElementById("pMonthSel").disabled = pState.mode === "year";
+    document.getElementById("pDaySel").disabled = pState.mode !== "day";
+    renderProduct();
+  });
+  document.getElementById("pYearSel").addEventListener("change", function(){
+    pState.year = +this.value; refreshProductMonthOptions(); renderProduct();
+  });
+  document.getElementById("pMonthSel").addEventListener("change", function(){
+    pState.month = +this.value; refreshProductDayOptions(); renderProduct();
+  });
+  document.getElementById("pDaySel").addEventListener("change", function(){
+    pState.day = +this.value; renderProduct();
+  });
+  document.getElementById("pStoreSel").addEventListener("change", function(){
+    pState.store = this.value; renderProduct();
+  });
+
+  function filteredProductRecords(){
+    return pState.records.filter(function(r){
+      if (r.date.getFullYear() !== pState.year) return false;
+      if ((pState.mode === "month" || pState.mode === "day") && (r.date.getMonth()+1) !== pState.month) return false;
+      if (pState.mode === "day" && r.date.getDate() !== pState.day) return false;
+      if (pState.store !== "all" && r.store !== pState.store) return false;
+      return true;
+    });
+  }
+
+  function aggregateBy(records, keyFn){
+    var map = {};
+    records.forEach(function(r){
+      var k = keyFn(r);
+      var s = map[k] || (map[k] = {key:k, qty:0, amount:0, brand:r.brand});
+      s.qty += r.qty; s.amount += r.amount;
+    });
+    return Object.values(map).sort(function(a,b){ return b.amount - a.amount; });
+  }
+
+  function renderProduct(){
+    var records = filteredProductRecords();
+    var totalQty = records.reduce(function(a,r){return a+r.qty;},0);
+    var totalAmount = records.reduce(function(a,r){return a+r.amount;},0);
+    var skuCount = new Set(records.map(function(r){return r.product;})).size;
+    var agentCount = new Set(records.map(function(r){return r.agent;})).size;
+    var avgPrice = totalQty ? totalAmount/totalQty : 0;
+
+    document.getElementById("pKpiGrid").innerHTML = [
+      ["💵 总销售额", fmtMoney(totalAmount)],
+      ["📦 总销售数量", fmtInt(totalQty)],
+      ["🏷️ 上架产品数", fmtInt(skuCount)],
+      ["🧑‍💼 参与 Agent 数", fmtInt(agentCount)],
+      ["🔖 平均单价", fmtMoney(avgPrice)]
+    ].map(function(it){
+      return '<div class="kpi"><div class="label">'+it[0]+'</div><div class="value">'+it[1]+'</div></div>';
+    }).join("");
+
+    renderRank("pAgentRank", aggregateBy(records, function(r){return r.agent;}).slice(0,15), totalAmount);
+    renderRank("pBrandRank", aggregateBy(records, function(r){return r.brand;}).slice(0,12), totalAmount);
+    renderProductTable(aggregateByProduct(records).slice(0,20));
+    renderProductTrend(records);
+
+    // Keep an open detail/compare view in sync with the active filters (mode/year/month/day/store)
+    if (pState.detailProduct) showProductDetail(pState.detailProduct, true);
+    if (document.getElementById("pCompareSection").style.display !== "none") renderCompareView();
+  }
+
+  function aggregateByProduct(records){
+    var map = {};
+    records.forEach(function(r){
+      var k = r.product;
+      var s = map[k] || (map[k] = {product:k, brand:r.brand, qty:0, amount:0});
+      s.qty += r.qty; s.amount += r.amount;
+    });
+    return Object.values(map).sort(function(a,b){ return b.amount - a.amount; });
+  }
+
+  function renderRank(elId, items, total){
+    var el = document.getElementById(elId);
+    if (!items.length){ el.innerHTML = '<div class="empty">当前筛选范围内没有数据</div>'; return; }
+    var maxV = Math.max.apply(null, items.map(function(s){return s.amount;}).concat([1]));
+    var seqColor = cssVar("--seq-450");
+    el.innerHTML = items.map(function(s, i){
+      var w = Math.max((s.amount/maxV*100), 1.5);
+      var pct = total ? (s.amount/total*100).toFixed(1) : "0.0";
+      return '<div class="rankrow">' +
+        '<div class="rnum">'+(i+1)+'</div>' +
+        '<div class="name" title="'+escapeHtml(s.key)+'">'+escapeHtml(s.key)+'</div>' +
+        '<div class="track"><div class="fill" style="width:'+w+'%;background:'+seqColor+'"></div></div>' +
+        '<div class="val">'+fmtMoney(s.amount)+' <span style="color:var(--muted)">('+pct+'%)</span></div>' +
+      '</div>';
+    }).join("");
+  }
+
+  var MAX_COMPARE = 8;
+
+  function renderProductTable(items){
+    var tbody = document.querySelector("#pProductTable tbody");
+    if (!items.length){ tbody.innerHTML = '<tr><td colspan="5" class="empty">暂无数据</td></tr>'; return; }
+    tbody.innerHTML = items.map(function(s){
+      var checked = pState.compareSet.has(s.product) ? "checked" : "";
+      return '<tr data-product="'+escapeHtml(s.product)+'">' +
+        '<td><input type="checkbox" class="pCompareChk" '+checked+'></td>' +
+        '<td style="text-align:left;" title="点击查看该产品详情">'+escapeHtml(s.product)+'</td>' +
+        '<td>'+escapeHtml(s.brand)+'</td>' +
+        '<td>'+fmtInt(s.qty)+'</td>' +
+        '<td>'+fmtMoney(s.amount)+'</td>' +
+      '</tr>';
+    }).join("");
+  }
+
+  // ---- Product row click → detail view; checkbox → compare selection ----
+  document.getElementById("pProductTable").addEventListener("click", function(e){
+    var tr = e.target.closest("tr[data-product]");
+    if (!tr) return;
+    var product = tr.dataset.product;
+    var chk = e.target.closest(".pCompareChk");
+    if (chk){
+      if (chk.checked){
+        if (pState.compareSet.size >= MAX_COMPARE){
+          chk.checked = false;
+          return;
+        }
+        pState.compareSet.add(product);
+      } else {
+        pState.compareSet.delete(product);
+      }
+      updateCompareBar();
+      return;
+    }
+    showProductDetail(product);
+  });
+
+  function updateCompareBar(){
+    var n = pState.compareSet.size;
+    document.getElementById("pCompareCount").textContent = n;
+    document.getElementById("pCompareBar").style.display = n > 0 ? "flex" : "none";
+    document.getElementById("pCompareBtn").disabled = n < 2;
+  }
+
+  document.getElementById("pCompareBtn").addEventListener("click", function(){ renderCompareView(); });
+  document.getElementById("pCompareClearBtn").addEventListener("click", function(){
+    pState.compareSet.clear();
+    updateCompareBar();
+    document.getElementById("pCompareSection").style.display = "none";
+    renderProductTable(aggregateByProduct(filteredProductRecords()).slice(0,20));
+  });
+  document.getElementById("pDetailCloseBtn").addEventListener("click", function(){
+    pState.detailProduct = null;
+    document.getElementById("pDetailSection").style.display = "none";
+  });
+  document.getElementById("pCompareCloseBtn").addEventListener("click", function(){
+    document.getElementById("pCompareSection").style.display = "none";
+  });
+
+  // ---- Time-bucket helper shared by main trend / detail / compare views ----
+  function buildTimeBuckets(records, sumField){
+    var buckets, titleSuffix;
+    if (pState.mode === "day"){
+      var byStore = {};
+      records.forEach(function(r){ byStore[r.store] = (byStore[r.store]||0) + r[sumField]; });
+      buckets = Object.keys(byStore).sort(function(a,b){ return byStore[b]-byStore[a]; })
+        .map(function(k){ return {label:k, full:k, value:byStore[k]}; });
+      titleSuffix = pState.year + "-" + String(pState.month).padStart(2,"0") + "-" + String(pState.day).padStart(2,"0");
+    } else if (pState.mode === "month"){
+      var byDay = {};
+      records.forEach(function(r){ var k = fmtDate(r.date); byDay[k] = (byDay[k]||0) + r[sumField]; });
+      var days = Object.keys(byDay).sort();
+      buckets = days.map(function(k){ return {label:k.slice(5), full:k, value:byDay[k]}; });
+      titleSuffix = pState.year + " 年 " + pState.month + " 月";
+    } else {
+      var byMonth = {};
+      records.forEach(function(r){ var k = r.date.getMonth()+1; byMonth[k] = (byMonth[k]||0) + r[sumField]; });
+      buckets = [];
+      for (var m=1;m<=12;m++){ if (byMonth[m] !== undefined) buckets.push({label:m+"月", full:pState.year+"-"+String(m).padStart(2,"0"), value:byMonth[m]}); }
+      titleSuffix = pState.year + " 年全年";
+    }
+    return { buckets: buckets, titleSuffix: titleSuffix };
+  }
+
+  // ---- Single-product detail view ----
+  function showProductDetail(productName, skipScroll){
+    pState.detailProduct = productName;
+    document.getElementById("pCompareSection").style.display = "none";
+    var records = filteredProductRecords().filter(function(r){ return r.product === productName; });
+
+    var totalQty = records.reduce(function(a,r){return a+r.qty;},0);
+    var totalAmount = records.reduce(function(a,r){return a+r.amount;},0);
+    var avgPrice = totalQty ? totalAmount/totalQty : 0;
+    var storeCount = new Set(records.map(function(r){return r.store;})).size;
+    var agentCount = new Set(records.map(function(r){return r.agent;})).size;
+
+    document.getElementById("pDetailTitle").textContent = "🔍 " + productName;
+    document.getElementById("pDetailKpi").innerHTML = [
+      ["💵 销售额", fmtMoney(totalAmount)],
+      ["📦 销售数量", fmtInt(totalQty)],
+      ["🔖 平均单价", fmtMoney(avgPrice)],
+      ["🧾 成交笔数", fmtInt(records.length)],
+      ["🏬 涉及店铺数", fmtInt(storeCount)],
+      ["🧑‍💼 涉及 Agent 数", fmtInt(agentCount)]
+    ].map(function(it){
+      return '<div class="kpi"><div class="label">'+it[0]+'</div><div class="value">'+it[1]+'</div></div>';
+    }).join("");
+
+    renderRank("pDetailStoreRank", aggregateBy(records, function(r){return r.store;}).slice(0,10), totalAmount);
+    renderRank("pDetailAgentRank", aggregateBy(records, function(r){return r.agent;}).slice(0,10), totalAmount);
+
+    var bt = buildTimeBuckets(records, "amount");
+    drawBarSVG("pDetailTrendSvg", "pDetailTrendTooltip", bt.buckets);
+
+    var sec = document.getElementById("pDetailSection");
+    sec.style.display = "block";
+    if (!skipScroll) sec.scrollIntoView({behavior:"smooth", block:"start"});
+  }
+
+  // ---- Multi-product compare view ----
+  function assignCompareColors(products){
+    pState.compareColor = {};
+    products.forEach(function(p, i){ pState.compareColor[p] = cssVar(PALETTE[i % PALETTE.length]); });
+  }
+
+  function renderCompareView(){
+    var products = Array.from(pState.compareSet);
+    if (products.length < 2) return;
+    assignCompareColors(products);
+    document.getElementById("pDetailSection").style.display = "none";
+    pState.detailProduct = null;
+
+    var allRecords = filteredProductRecords();
+    var rows = products.map(function(p){
+      var recs = allRecords.filter(function(r){ return r.product === p; });
+      var qty = recs.reduce(function(a,r){return a+r.qty;},0);
+      var amount = recs.reduce(function(a,r){return a+r.amount;},0);
+      return { product:p, qty:qty, amount:amount, avgPrice: qty ? amount/qty : 0, orders: recs.length, records: recs };
+    }).sort(function(a,b){ return b.amount - a.amount; });
+
+    document.querySelector("#pCompareTable tbody").innerHTML = rows.map(function(r){
+      return '<tr>' +
+        '<td style="text-align:left;color:'+pState.compareColor[r.product]+';font-weight:700;">'+escapeHtml(r.product)+'</td>' +
+        '<td>'+fmtInt(r.qty)+'</td>' +
+        '<td>'+fmtMoney(r.amount)+'</td>' +
+        '<td>'+fmtMoney(r.avgPrice)+'</td>' +
+        '<td>'+fmtInt(r.orders)+'</td>' +
+      '</tr>';
+    }).join("");
+
+    // Build a shared label axis (union of buckets across all selected products) so every
+    // product's series lines up against the same x categories, even if one product has
+    // sales on days/months another doesn't (missing points become 0).
+    var labelOrder = [];
+    var seenLabel = {};
+    var fullByLabel = {};
+    rows.forEach(function(r){
+      var bt = buildTimeBuckets(r.records, "amount");
+      bt.buckets.forEach(function(b){
+        if (!seenLabel[b.label]){ seenLabel[b.label] = true; labelOrder.push(b.label); fullByLabel[b.label] = b.full; }
+      });
+    });
+    labelOrder.sort();
+    document.getElementById("pCompareTrendTitle").textContent =
+      "销售额趋势对比 · " + (buildTimeBuckets(allRecords, "amount").titleSuffix || "");
+
+    var series = rows.map(function(r){
+      var bt = buildTimeBuckets(r.records, "amount");
+      var map = {};
+      bt.buckets.forEach(function(b){ map[b.label] = b.value; });
+      return { name: r.product, color: pState.compareColor[r.product], values: labelOrder.map(function(l){ return map[l] || 0; }) };
+    });
+
+    drawGroupedBarSVG("pCompareTrendSvg", "pCompareTrendTooltip", labelOrder, series);
+
+    document.getElementById("pCompareLegend").innerHTML = rows.map(function(r){
+      return '<div class="item"><span class="sw" style="background:'+pState.compareColor[r.product]+'"></span>'+escapeHtml(r.product)+'</div>';
+    }).join("");
+
+    document.getElementById("pCompareSection").style.display = "block";
+    document.getElementById("pCompareSection").scrollIntoView({behavior:"smooth", block:"start"});
+  }
+
+  function drawGroupedBarSVG(svgId, tooltipId, labels, series){
+    var svg = document.getElementById(svgId);
+    var tooltip = document.getElementById(tooltipId);
+    var W = svg.clientWidth || 600, H = svg.clientHeight || 200;
+    svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+    svg.innerHTML = "";
+    if (!labels.length || !series.length){
+      svg.innerHTML = '<text x="'+(W/2)+'" y="'+(H/2)+'" text-anchor="middle" fill="var(--muted)" font-size="12">暂无数据</text>';
+      return;
+    }
+    var padL = 4, padR = 4, padT = 10, padB = 22;
+    var plotW = W - padL - padR, plotH = H - padT - padB;
+    var maxV = Math.max.apply(null, series.reduce(function(a,s){return a.concat(s.values);},[]).concat([1]));
+    var n = labels.length, k = series.length;
+    var groupGap = Math.min(12, plotW / n * 0.25);
+    var groupW = (plotW - groupGap*(n-1)) / n;
+    var barGap = 1.5;
+    var barW = Math.max((groupW - barGap*(k-1)) / k, 1.5);
+    var ns = "http://www.w3.org/2000/svg";
+
+    var base = document.createElementNS(ns, "line");
+    base.setAttribute("x1", padL); base.setAttribute("x2", W-padR);
+    base.setAttribute("y1", H-padB); base.setAttribute("y2", H-padB);
+    base.setAttribute("stroke", "var(--baseline)"); base.setAttribute("stroke-width", "1");
+    svg.appendChild(base);
+
+    labels.forEach(function(label, i){
+      var gx = padL + i*(groupW+groupGap);
+      series.forEach(function(s, j){
+        var v = s.values[i];
+        var h = maxV > 0 ? (v / maxV) * plotH : 0;
+        var x = gx + j*(barW+barGap);
+        var y = padT + (plotH - h);
+        var rect = document.createElementNS(ns, "rect");
+        rect.setAttribute("x", x); rect.setAttribute("y", y);
+        rect.setAttribute("width", barW); rect.setAttribute("height", Math.max(h,1));
+        rect.setAttribute("rx", Math.min(2.5, barW/2));
+        rect.setAttribute("fill", s.color);
+        svg.appendChild(rect);
+
+        var hit = document.createElementNS(ns, "rect");
+        hit.setAttribute("x", x); hit.setAttribute("y", padT);
+        hit.setAttribute("width", barW); hit.setAttribute("height", plotH+padB);
+        hit.setAttribute("fill", "transparent");
+        hit.addEventListener("mouseenter", function(){ showTip(s.name, label, v, x + barW/2, y); });
+        hit.addEventListener("mousemove", function(){ showTip(s.name, label, v, x + barW/2, y); });
+        hit.addEventListener("mouseleave", hideTip);
+        hit.addEventListener("touchstart", function(ev){ ev.preventDefault(); showTip(s.name, label, v, x + barW/2, y); }, {passive:false});
+        svg.appendChild(hit);
+      });
+
+      if (n <= 14 || i % Math.ceil(n/10) === 0){
+        var txt = document.createElementNS(ns, "text");
+        txt.setAttribute("x", gx + groupW/2); txt.setAttribute("y", H-6);
+        txt.setAttribute("text-anchor", "middle"); txt.setAttribute("font-size", "9.5");
+        txt.setAttribute("fill", "var(--muted)");
+        txt.textContent = label;
+        svg.appendChild(txt);
+      }
+    });
+
+    function showTip(name, label, v, x, y){
+      tooltip.style.opacity = "1";
+      tooltip.style.left = x + "px";
+      tooltip.style.top = y + "px";
+      tooltip.innerHTML = "<strong>" + escapeHtml(name) + "</strong> · " + label + "<br>" + fmtMoney(v);
+    }
+    function hideTip(){ tooltip.style.opacity = "0"; }
+  }
+
+  function renderProductTrend(records){
+    var titleEl = document.getElementById("pTrendTitle");
+    var bt = buildTimeBuckets(records, "amount");
+    var label = pState.mode === "day" ? "当日各店铺销售额" : (pState.mode === "month" ? "每日销售额趋势" : "月度销售额趋势");
+    titleEl.innerHTML = label + " <span class='hint'>" + bt.titleSuffix + "</span>";
+    drawBarSVG("pTrendSvg", "pTrendTooltip", bt.buckets);
+  }
+
+  // ---- Tab switching ----
+  document.getElementById("topTabs").addEventListener("click", function(e){
+    var btn = e.target.closest("button"); if (!btn) return;
+    var tab = btn.dataset.tab;
+    Array.from(this.children).forEach(function(b){ b.classList.toggle("active", b === btn); });
+    document.getElementById("tab-overview").classList.toggle("active", tab === "overview");
+    document.getElementById("tab-product").classList.toggle("active", tab === "product");
+    if (tab === "product"){
+      // SVG width is 0 while a tab is display:none, so redraw once it becomes visible
+      renderProduct();
+    }
+  });
 
   // ---- Data loading ----
   function load(isManual){
@@ -784,13 +1454,17 @@
     function hideTip(){ tooltip.style.opacity = "0"; }
   }
 
-  window.addEventListener("resize", function(){ if (state.year) render(); });
+  window.addEventListener("resize", function(){
+    if (state.year) render();
+    if (pState.year && document.getElementById("tab-product").classList.contains("active")) renderProduct();
+  });
 
   // init
   populateFilters();
   render();
   load(false);
-  setInterval(function(){ load(false); }, REFRESH_MS);
+  loadProduct();
+  setInterval(function(){ load(false); loadProduct(); }, REFRESH_MS);
 })();
 </script>
 </body>
