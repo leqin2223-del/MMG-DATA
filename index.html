@@ -266,7 +266,8 @@
     </section>
 
     <section>
-      <h2>按产品名称汇总 <span class="hint">按销售额排序 · 前 20 名 · 点击产品名查看详情，勾选可对比</span></h2>
+      <h2>按产品名称汇总 <span class="hint" id="pProductHint">按销售额排序 · 前 20 名 · 点击产品名查看详情，勾选可对比</span></h2>
+      <input type="text" id="pSearchInput" placeholder="🔍 搜索产品名称 / 品牌 / 销售员…" style="width:100%;box-sizing:border-box;padding:9px 12px;margin-bottom:12px;border:1px solid var(--border);border-radius:10px;background:var(--page);color:var(--text-primary);font-size:13px;">
       <div class="tblscroll">
         <table id="pProductTable">
           <thead><tr>
@@ -655,7 +656,12 @@
     return out;
   }
 
-  var pState = { records: [], live: false, mode: "month", year: null, month: null, day: null, store: "all", compareSet: new Set(), detailProduct: null, compareColor: {} };
+  var pState = { records: [], live: false, mode: "month", year: null, month: null, day: null, store: "all", compareSet: new Set(), detailProduct: null, compareColor: {}, searchQuery: "" };
+
+  document.getElementById("pSearchInput").addEventListener("input", function(){
+    pState.searchQuery = this.value;
+    renderProduct();
+  });
 
   function loadProduct(){
     fetchSheet(PRODUCT_SHEET_GID).then(function(resp){
@@ -786,7 +792,7 @@
 
     renderRank("pAgentRank", aggregateBy(records, function(r){return r.agent;}).slice(0,15), totalAmount);
     renderRank("pBrandRank", aggregateBy(records, function(r){return r.brand;}).slice(0,12), totalAmount);
-    renderProductTable(aggregateByProduct(records).slice(0,20));
+    renderProductTableWithSearch(records);
     renderProductTrend(records);
 
     // Keep an open detail/compare view in sync with the active filters (mode/year/month/day/store)
@@ -822,6 +828,45 @@
   }
 
   var MAX_COMPARE = 8;
+
+  function buildProductAgentsMap(records){
+    var map = {};
+    records.forEach(function(r){
+      (map[r.product] || (map[r.product] = new Set())).add(r.agent);
+    });
+    return map;
+  }
+
+  // Search matches product name, brand, or any agent who sold that product — against
+  // the FULL aggregated totals (not just the matching agent's slice), so a search by
+  // agent name still shows each matched product's true overall numbers, consistent
+  // with the rest of this tab's figures. When there's no query, fall back to the
+  // normal "top 20 by revenue" view.
+  function renderProductTableWithSearch(records){
+    var fullAgg = aggregateByProduct(records);
+    var q = (pState.searchQuery || "").trim().toLowerCase();
+    var hintEl = document.getElementById("pProductHint");
+    var items;
+    if (q){
+      var agentsMap = buildProductAgentsMap(records);
+      items = fullAgg.filter(function(s){
+        if (s.product.toLowerCase().indexOf(q) >= 0) return true;
+        if ((s.brand || "").toLowerCase().indexOf(q) >= 0) return true;
+        var agents = agentsMap[s.product];
+        if (agents){
+          var hit = false;
+          agents.forEach(function(a){ if ((a||"").toLowerCase().indexOf(q) >= 0) hit = true; });
+          if (hit) return true;
+        }
+        return false;
+      });
+      hintEl.textContent = "共找到 " + items.length + " 项匹配 · 点击产品名查看详情，勾选可对比";
+    } else {
+      items = fullAgg.slice(0, 20);
+      hintEl.textContent = "按销售额排序 · 前 20 名 · 点击产品名查看详情，勾选可对比";
+    }
+    renderProductTable(items);
+  }
 
   function renderProductTable(items){
     var tbody = document.querySelector("#pProductTable tbody");
@@ -872,7 +917,7 @@
     pState.compareSet.clear();
     updateCompareBar();
     document.getElementById("pCompareSection").style.display = "none";
-    renderProductTable(aggregateByProduct(filteredProductRecords()).slice(0,20));
+    renderProductTableWithSearch(filteredProductRecords());
   });
   document.getElementById("pDetailCloseBtn").addEventListener("click", function(){
     pState.detailProduct = null;
